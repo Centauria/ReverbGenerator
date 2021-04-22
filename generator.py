@@ -25,7 +25,7 @@ def simulate(
 ):
     if input_sample_rate != room.fs:
         input_wave = librosa.resample(input_wave, input_sample_rate, room.fs)
-    room.sources[0].signal = input_wave
+    room.sources[0].add_signal(input_wave)
     room.simulate()
     u = room.mic_array.signals
     if to_file:
