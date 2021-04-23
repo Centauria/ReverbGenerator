@@ -2,7 +2,7 @@
 import numpy as np
 
 
-def generate_config(sample_rate=16000):
+def generate_config(seed=None, sample_rate=16000):
     """Generate RIR config.
     :return room_size, source_location, mic_array_location, rt60
     :rtype room_size: np.array(3,)
@@ -10,6 +10,8 @@ def generate_config(sample_rate=16000):
     :rtype mic_array_location: np.array(3, 6)
     :rtype rt60: float
     """
+    if seed:
+        np.random.seed(seed)
     L = np.random.choice(np.linspace(3, 5, 21))
     W = np.random.choice(np.linspace(5, 10, 51))
     H = 3
