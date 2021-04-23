@@ -3,8 +3,8 @@ import argparse
 import multiprocessing
 import os.path
 import random
-import string
 import subprocess
+import time
 
 import librosa
 import pandas as pd
@@ -64,7 +64,7 @@ if __name__ == '__main__':
             input_wav_file = random.choice(wav_paths)
             w, sr = librosa.load(os.path.sep.join((args.timit_path, input_wav_file)), sr=None, mono=True)
             # TODO: prevent duplicate strings
-            filename = ''.join(random.sample(string.ascii_letters + string.digits, 4)) + '.wav'
+            filename = '-'.join('{:.6f}'.format(time.time()).split('.')) + '.wav'
             generator.simulate(room, w,
                                to_file=os.path.sep.join((args.wav_output, filename)),
                                input_sample_rate=sr)
@@ -90,9 +90,6 @@ if __name__ == '__main__':
         return result
 
 
-    rounds, remain = divmod(args.room_count, 2 * args.jobs)
-
-
     def do_work(n):
         with multiprocessing.Pool(processes=args.jobs) as pool:
             results = pool.map(work, range(n))
@@ -102,12 +99,20 @@ if __name__ == '__main__':
         return result
 
 
-    for rn in range(rounds):
-        print(f'Round {rn + 1}/{rounds}')
-        room_configs = room_configs.append(do_work(2 * args.jobs), ignore_index=True)
-    if remain > 0:
-        print(f'Generating last remainders')
-        room_configs = room_configs.append(do_work(remain), ignore_index=True)
+    if args.jobs > 1:
+        rounds, remain = divmod(args.room_count, 2 * args.jobs)
+        for rn in range(rounds):
+            print(f'Round {rn + 1}/{rounds}')
+            room_configs = room_configs.append(do_work(2 * args.jobs), ignore_index=True)
+        if remain > 0:
+            print(f'Generating last remainders')
+            room_configs = room_configs.append(do_work(remain), ignore_index=True)
+    elif args.jobs == 1:
+        for i in range(args.room_count):
+            result = work(i)
+            room_configs = room_configs.append(pd.DataFrame(result, index=range(len(result))), ignore_index=True)
+    else:
+        raise ValueError('Invalid job number')
 
     print(f'Generated {len(room_configs)} items.')
     room_configs.to_csv(args.meta_output, index_label='index', float_format='%.2f')
