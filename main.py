@@ -55,7 +55,7 @@ if __name__ == '__main__':
     def work(worker_id):
         result = []
         room_size, source_location, mic_array_location, rt60 = config.generate_config(
-            seed=args.seed ^ worker_id,
+            seed=random.randint(0, 0xFFFFFFFF),
             sample_rate=16000
         )
         room = generator.make_room(room_size, source_location, mic_array_location, rt60)
