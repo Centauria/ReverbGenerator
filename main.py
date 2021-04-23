@@ -52,16 +52,18 @@ if __name__ == '__main__':
     os.makedirs(args.wav_output, exist_ok=True)
 
 
-    def work(worker_id):
+    def work(work_id):
         result = []
         room_size, source_location, mic_array_location, rt60 = config.generate_config(
             seed=random.randint(0, 0xFFFFFFFF),
             sample_rate=16000
         )
+        print(f'Making in room {room_size}. work id {work_id}')
         room = generator.make_room(room_size, source_location, mic_array_location, rt60)
         for j in range(args.items_per_room):
             input_wav_file = random.choice(wav_paths)
             w, sr = librosa.load(os.path.sep.join((args.timit_path, input_wav_file)), sr=None, mono=True)
+            # TODO: prevent duplicate strings
             filename = ''.join(random.sample(string.ascii_letters + string.digits, 4)) + '.wav'
             generator.simulate(room, w,
                                to_file=os.path.sep.join((args.wav_output, filename)),
@@ -83,19 +85,29 @@ if __name__ == '__main__':
                 'rt60': rt60,
                 'source_filename': input_wav_file
             })
-            print(f'Generated file {filename} in room {room_size}. Using {input_wav_file}. by worker {worker_id}')
+            print(f'Generated file {filename} in room {room_size}. Using {input_wav_file}. work id {work_id}')
+
         return result
 
 
-    results = []
-    with multiprocessing.Pool(processes=args.jobs) as pool:
-        for p in range(args.room_count):
-            results.append(pool.apply_async(work, (p,)))
-        pool.close()
-        pool.join()
-    room_configs = room_configs.append(
-        pd.concat(list(map(lambda r: pd.DataFrame(r.get(), index=(0, 1, 2, 3)), results))),
-        ignore_index=True
-    )
+    rounds, remain = divmod(args.room_count, 2 * args.jobs)
+
+
+    def do_work(n):
+        with multiprocessing.Pool(processes=args.jobs) as pool:
+            results = pool.map(work, range(n))
+            pool.close()
+            result = pd.concat(map(lambda r: pd.DataFrame(r, index=range(len(r))), results))
+            pool.join()
+        return result
+
+
+    for rn in range(rounds):
+        print(f'Round {rn + 1}/{rounds}')
+        room_configs = room_configs.append(do_work(2 * args.jobs), ignore_index=True)
+    if remain > 0:
+        print(f'Generating last remainders')
+        room_configs = room_configs.append(do_work(remain), ignore_index=True)
+
     print(f'Generated {len(room_configs)} items.')
     room_configs.to_csv(args.meta_output, index_label='index', float_format='%.2f')
