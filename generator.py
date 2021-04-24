@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os.path
+
 import librosa
 import numpy as np
 import pyroomacoustics as pra
@@ -29,5 +31,8 @@ def simulate(
     room.simulate()
     u = room.mic_array.signals
     if to_file:
+        # prevent duplicated filename
+        while os.path.isfile(to_file):
+            to_file += '-'
         room.mic_array.to_wav(to_file, norm=True, bitdepth=np.int16)
     return u

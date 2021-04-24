@@ -63,8 +63,7 @@ if __name__ == '__main__':
         for j in range(args.items_per_room):
             input_wav_file = random.choice(wav_paths)
             w, sr = librosa.load(os.path.sep.join((args.timit_path, input_wav_file)), sr=None, mono=True)
-            # TODO: prevent duplicate strings
-            filename = '-'.join('{:.6f}'.format(time.time()).split('.')) + '.wav'
+            filename = '-'.join('{:.6f}'.format(time.time()).split('.')) + f'-{str(work_id).zfill(4)}.wav'
             generator.simulate(room, w,
                                to_file=os.path.sep.join((args.wav_output, filename)),
                                input_sample_rate=sr)
