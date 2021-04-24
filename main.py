@@ -21,6 +21,8 @@ if __name__ == '__main__':
     p.add_argument('-p', '--items-per-room', type=int, default=4,
                    help='Decide how many items will be generated in one room.')
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
+    p.add_argument('-b', '--batch', type=int, default=2,
+                   help='How many works should be done per circulation per worker.')
     p.add_argument('--seed', type=int, default=None, help='Specify seed.')
     p.add_argument('--timit-path', required=True, help='Specify path of TIMIT database.')
     p.add_argument('--meta-output', required=True, help='Output file name for metadata.\n'
@@ -46,7 +48,9 @@ if __name__ == '__main__':
             'src_x', 'src_y', 'src_z',
             'mic1_x', 'mic1_y', 'mic1_z',
             'mic6_x', 'mic6_y', 'mic6_z',
-            'rt60', 'source_filename'
+            'rt60', 'rt60_1', 'rt60_2', 'rt60_3',
+            'rt60_4', 'rt60_5', 'rt60_6',
+            'source_filename'
         ))
 
     os.makedirs(args.wav_output, exist_ok=True)
@@ -60,6 +64,8 @@ if __name__ == '__main__':
         )
         print(f'Making in room {room_size}. work id {work_id}')
         room = generator.make_room(room_size, source_location, mic_array_location, rt60)
+        room.compute_rir()
+        actual_rt60 = room.measure_rt60()
         for j in range(args.items_per_room):
             input_wav_file = random.choice(wav_paths)
             w, sr = librosa.load(os.path.sep.join((args.timit_path, input_wav_file)), sr=None, mono=True)
@@ -82,6 +88,12 @@ if __name__ == '__main__':
                 'mic6_y': mic_array_location[1, -1],
                 'mic6_z': mic_array_location[2, -1],
                 'rt60': rt60,
+                'rt60_1': actual_rt60[0],
+                'rt60_2': actual_rt60[1],
+                'rt60_3': actual_rt60[2],
+                'rt60_4': actual_rt60[3],
+                'rt60_5': actual_rt60[4],
+                'rt60_6': actual_rt60[5],
                 'source_filename': input_wav_file
             })
             print(f'Generated file {filename} in room {room_size}. Using {input_wav_file}. work id {work_id}')
@@ -98,20 +110,13 @@ if __name__ == '__main__':
         return result
 
 
-    if args.jobs > 1:
-        rounds, remain = divmod(args.room_count, 2 * args.jobs)
-        for rn in range(rounds):
-            print(f'Round {rn + 1}/{rounds}')
-            room_configs = room_configs.append(do_work(2 * args.jobs), ignore_index=True)
-        if remain > 0:
-            print(f'Generating last remainders')
-            room_configs = room_configs.append(do_work(remain), ignore_index=True)
-    elif args.jobs == 1:
-        for i in range(args.room_count):
-            result = work(i)
-            room_configs = room_configs.append(pd.DataFrame(result, index=range(len(result))), ignore_index=True)
-    else:
-        raise ValueError('Invalid job number')
+    rounds, remain = divmod(args.room_count, args.batch * args.jobs)
+    for rn in range(rounds):
+        print(f'Round {rn + 1}/{rounds}')
+        room_configs = room_configs.append(do_work(args.batch * args.jobs), ignore_index=True)
+    if remain > 0:
+        print(f'Generating last remainders')
+        room_configs = room_configs.append(do_work(remain), ignore_index=True)
 
     print(f'Generated {len(room_configs)} items.')
-    room_configs.to_csv(args.meta_output, index_label='index', float_format='%.2f')
+    room_configs.to_csv(args.meta_output, index_label='index', float_format='%.3f')
