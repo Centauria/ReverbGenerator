@@ -36,3 +36,16 @@ def simulate(
             to_file += '-'
         room.mic_array.to_wav(to_file, norm=True, bitdepth=np.int16)
     return u
+
+
+def overlap(wave_a, wave_b, overlap_time):
+    # TODO: overlap `wave_a` and `wave_b` with `overlap_time`
+    """Overlap waveforms
+    :returns wave_a_b
+    """
+
+
+def overlap_time_distribution(expectation, overlap_num):
+    """Get a distribution of the overlap time
+    :returns t
+    """
