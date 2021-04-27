@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 import argparse
-<<<<<<< HEAD
-import numpy as np
-=======
 import multiprocessing
 import os.path
 import random
@@ -12,7 +9,6 @@ import time
 import librosa
 import pandas as pd
 
->>>>>>> 867efd85bc33dc33f5322d4e1028b1b45f5cb0c6
 import config
 import generator
 
@@ -38,19 +34,6 @@ if __name__ == '__main__':
                                                         'If exists, append to the existing file.')
     p.add_argument('--wav-output', required=True, help='Output waveform folder name.')
     args = p.parse_args()
-<<<<<<< HEAD
-    # TODO: main loop
-
-    room_configs = np.zeros((args.c, 4))
-    r = np.zeros((args.c, args.p))
-    for i in range(args.c-1):
-        room_size, source_location, mic_array_location, rt60 = config.generate_config(sample_rate=16000)
-        room_configs[i, :] = [room_size, source_location, mic_array_location, rt60]
-        r[i, :] = generator.make_room(room_size, source_location, mic_array_location, rt60)
-    u = np.zeros()
-    for i in range(args.p-1):
-        u[i, :] = generator.simulate(r[i,:], input_wave, )
-=======
 
     if args.seed:
         random.seed(args.seed)
@@ -142,4 +125,3 @@ if __name__ == '__main__':
 
     print(f'Generated {len(room_configs)} items.')
     room_configs.to_csv(args.meta_output, index_label='index', float_format='%.3f')
->>>>>>> 867efd85bc33dc33f5322d4e1028b1b45f5cb0c6
