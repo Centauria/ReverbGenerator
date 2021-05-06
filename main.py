@@ -22,9 +22,11 @@ if __name__ == '__main__':
                    help='Decide how many items will be generated in one room.')
     p.add_argument('-t', '--tracks', type=int, default=6,
                    help='Decide how many people can be in the room simultaneously.')
-    p.add_argument('-r', '--overlap-ratio', type=float, default=0.2,
-                   help='Decide the expectation of the overlap ratio.\n'
-                        'The ratio is of a truncated normal distribution.')
+    p.add_argument('-T', '--time', type=float, default=10.0,
+                   help='Decide the total time of an item.')
+    p.add_argument('-l', '--lambda', type=float, default=0.2,
+                   help='Decide the λ of the start time distribution. \n'
+                        'The start times is of a Poisson distribution.')
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
     p.add_argument('-b', '--batch', type=int, default=2,
                    help='How many works should be done per circulation per worker.')
