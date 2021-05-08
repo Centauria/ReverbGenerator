@@ -5,6 +5,8 @@ import os.path
 import random
 import subprocess
 import time
+from scipy import stats
+import numpy as np
 
 import librosa
 import pandas as pd
@@ -127,3 +129,14 @@ if __name__ == '__main__':
 
     print(f'Generated {len(room_configs)} items.')
     room_configs.to_csv(args.meta_output, index_label='index', float_format='%.3f')
+
+
+    def poisson(lamb, wave_num):
+        X = np.arange(0, wave_num+1, 1)
+        start_times = stats.poisson.pmf(X, l)
+        return start_times
+
+    l = args.l
+    tracks = args.tracks
+    total_time = args.time
+    start_times = poisson(l, wave_num= )  # specify wave_num
