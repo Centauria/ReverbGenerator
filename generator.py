@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 import os.path
-
 import wave
-import scipy.stats as stats
+from collections import defaultdict, OrderedDict
+from copy import deepcopy
+from typing import Optional
+
 import librosa
 import numpy as np
 import pyroomacoustics as pra
+import ruamel_yaml as yaml
+import scipy.stats as stats
+
+import db
 
 
 def make_room(room_size, source_location, mic_array_location, rt60, sample_rate=16000):
@@ -76,6 +82,7 @@ def overlap(wave_a, wave_b, overlap_time):
 
     return wave_a_b
 
+
 def overlap_time_distribution(expectation, overlap_num):
     """Get a distribution of the overlap time
     :returns t
@@ -87,3 +94,135 @@ def overlap_time_distribution(expectation, overlap_num):
     t = distribution.rvs(overlap_num)
     return t
 
+
+def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
+                    poisson_lambda: float, track_num: Optional[int] = None, speakers=None):
+    track_info = defaultdict(lambda: [])
+    if speakers is None:
+        if track_num is not None:
+            speakers = np.random.choice(dataset.speakers(split), track_num, replace=False)
+        else:
+            raise ValueError('track_num and speakers neither specified')
+    else:
+        track_num = len(speakers)
+    speaker_lambda = poisson_lambda * track_num
+    for p in speakers:
+        wav_clips = []
+        start_times = []
+        while len(start_times) == 0:
+            start_times = np.cumsum(np.random.exponential(speaker_lambda, max(1, int(total_length / speaker_lambda))))
+        wav_files = np.random.choice(dataset.audio(split, p), len(start_times))
+        for i in range(len(start_times) - 1):
+            if start_times[i] <= total_length:
+                end_time = start_times[i].item() + librosa.get_duration(filename=wav_files[i])
+                if end_time > start_times[i + 1]:
+                    start_times[i + 1] = end_time
+                wav_clips.append(dict(
+                    wav_file=wav_files[i].item(),
+                    start_time=start_times[i].item(),
+                    end_time=end_time
+                ))
+            else:
+                break
+        else:
+            if start_times[-1] <= total_length:
+                end_time = start_times[-1].item() + librosa.get_duration(filename=wav_files[-1])
+                wav_clips.append(dict(
+                    wav_file=wav_files[-1].item(),
+                    start_time=start_times[-1].item(),
+                    end_time=end_time
+                ))
+        track_info[p] = wav_clips
+    return track_info
+
+
+def max_end_time(track_info):
+    max_end_time = 0
+    for speaker, wave_clips in track_info.items():
+        for wc in wave_clips:
+            max_end_time = wc['end_time'] if wc['end_time'] > max_end_time else max_end_time
+    return max_end_time
+
+
+def event_dict(track_info):
+    result = defaultdict(lambda: 0)
+    for speaker, wave_clips in track_info.items():
+        for wc in wave_clips:
+            result[wc['start_time']] += 1
+            result[wc['end_time']] -= 1
+    return OrderedDict(sorted(result.items()))
+
+
+def active_dict(track_info):
+    edict = event_dict(track_info)
+    result = OrderedDict()
+    active = 0
+    for k in edict.keys():
+        active += edict[k]
+        result[k] = active
+    return result
+
+
+def overlap_intervals(track_info):
+    adict = active_dict(track_info)
+    overlap_ranges = []
+    mark = False
+    for k in adict.keys():
+        if not mark and adict[k] > 1:
+            overlap_ranges.append(k)
+            mark = True
+        if mark and adict[k] <= 1:
+            overlap_ranges.append(k)
+            mark = False
+    overlap_ranges = list(zip(overlap_ranges[::2], overlap_ranges[1::2]))
+    return overlap_ranges
+
+
+def empty_intervals(track_info):
+    adict = active_dict(track_info)
+    empty_ranges = [0]
+    mark = True
+    for k in adict.keys():
+        if mark and adict[k] >= 1:
+            empty_ranges.append(k)
+            mark = False
+        elif not mark and adict[k] == 0:
+            empty_ranges.append(k)
+            mark = True
+    empty_ranges = list(zip(empty_ranges[::2], empty_ranges[1::2]))
+    return empty_ranges
+
+
+def ratio(track_info, intervals):
+    length = max_end_time(track_info)
+    time = 0
+    for a, b in intervals:
+        time += (b - a)
+    return time / length
+
+
+def shift(track_info, offset: float):
+    track_info_copy = deepcopy(track_info)
+    for speaker, wave_clips in track_info_copy.items():
+        for wc in wave_clips:
+            wc['start_time'] += offset
+            wc['end_time'] += offset
+    return track_info_copy
+
+
+def concatenate(*track_infos):
+    result = defaultdict(lambda: [])
+    offset = 0
+    for track_info in track_infos:
+        shifted_track_info = shift(track_info, offset)
+        for speaker, wave_clips in shifted_track_info.items():
+            result[speaker].extend(wave_clips)
+        offset += max_end_time(track_info)
+    return result
+
+
+if __name__ == '__main__':
+    tmt = db.TIMIT('/datasets/TIMIT')
+    info = generate_tracks(tmt, 10, 'train', 0.8, track_num=6)
+    info_yaml = yaml.dump(dict(info), Dumper=yaml.RoundTripDumper)
+    print(info_yaml)
