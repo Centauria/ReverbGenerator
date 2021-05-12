@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os.path
-import wave
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 from typing import Optional
@@ -114,43 +113,6 @@ def simulate(
     return u
 
 
-def overlap(wave_a, wave_b, overlap_time):
-    # TODO: overlap `wave_a` and `wave_b` with `overlap_time`
-    """Overlap waveforms
-    :returns wave_a_b
-    """
-    f1 = wave.open(wave_a, 'rb')
-    f2 = wave.open(wave_b, 'rb')
-
-    # 音频1的数据
-    params1 = f1.getparams()
-    nchannels1, sampwidth1, framerate1, nframes1, comptype1, compname1 = params1[:6]
-    f1_str_data = f1.readframes(nframes1)
-    f1.close()
-    f1_wave_data = np.fromstring(f1_str_data, dtype=np.int16)
-
-    # 音频2的数据
-    params2 = f2.getparams()
-    nchannels2, sampwidth2, framerate2, nframes2, comptype2, compname2 = params2[:6]
-    f2_str_data = f2.readframes(nframes2)
-    f2.close()
-    f2_wave_data = np.fromstring(f2_str_data, dtype=np.int16)
-
-    length = nframes1 + nframes2 - overlap_time
-
-    # 零对齐补位
-    temp_array1 = np.zeros((length - nframes1), dtype=np.int16)
-    temp_array2 = np.zeros((length - nframes2), dtype=np.int16)
-    rf1_wave_data = np.concatenate((f1_wave_data, temp_array1))
-    rf2_wave_data = np.concatenate((temp_array2, f2_wave_data))
-
-    # 合并1和2的数据
-    new_wave_data = rf1_wave_data + rf2_wave_data
-    wave_a_b = new_wave_data.tostring()
-
-    return wave_a_b
-
-
 def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
                     poisson_lambda: float, track_num: Optional[int] = None, speakers=None):
     track_info = defaultdict(lambda: [])
@@ -193,11 +155,11 @@ def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
 
 
 def max_end_time(track_info):
-    max_end_time = 0
+    end_time = 0
     for speaker, wave_clips in track_info.items():
         for wc in wave_clips:
-            max_end_time = wc['end_time'] if wc['end_time'] > max_end_time else max_end_time
-    return max_end_time
+            end_time = wc['end_time'] if wc['end_time'] > end_time else end_time
+    return end_time
 
 
 def event_dict(track_info):
