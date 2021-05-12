@@ -3,15 +3,11 @@ import argparse
 import multiprocessing
 import os.path
 import random
-import subprocess
-import time
-from scipy import stats
-import numpy as np
 
-import librosa
-import pandas as pd
+import ruamel_yaml as yaml
 
-import config
+import config_io
+import db
 import generator
 
 if __name__ == '__main__':
@@ -24,119 +20,61 @@ if __name__ == '__main__':
                    help='Decide how many items will be generated in one room.')
     p.add_argument('-t', '--tracks', type=int, default=6,
                    help='Decide how many people can be in the room simultaneously.')
-    p.add_argument('-T', '--time', type=float, default=10.0,
+    p.add_argument('-T', '--time', type=float, default=30.0,
                    help='Decide the total time of an item.')
-    p.add_argument('-l', '--lambda', type=float, default=0.2,
+    p.add_argument('-l', '--lambda', dest='poisson_lambda', type=float,
                    help='Decide the λ of the start time distribution. \n'
-                        'The start times is of a Poisson distribution.')
+                        'The start times is of an exponential distribution.')
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
     p.add_argument('-b', '--batch', type=int, default=2,
                    help='How many works should be done per circulation per worker.')
     p.add_argument('--seed', type=int, default=None, help='Specify seed.')
     p.add_argument('--timit-path', required=True, help='Specify path of TIMIT database.')
-    p.add_argument('--meta-output', required=True, help='Output file name for metadata.\n'
-                                                        'If exists, append to the existing file.')
+    p.add_argument('--split', required=True, choices=['train', 'test'], help='Choose split of dataset')
+    p.add_argument('--meta-output', required=True, help='Output metadata folder name.')
     p.add_argument('--wav-output', required=True, help='Output waveform folder name.')
     args = p.parse_args()
 
     if args.seed:
         random.seed(args.seed)
     if os.path.isdir(args.timit_path):
-        o = subprocess.check_output(['find', args.timit_path, '-name', '*.wav']).decode()
-        wav_paths = o.split(os.linesep)
-        wav_paths.remove('')
-        wav_paths = list(map(lambda x: x.replace(args.timit_path + os.path.sep, ''), wav_paths))
+        timit = db.TIMIT(args.timit_path)
     else:
         raise FileNotFoundError('TIMIT path invalid')
-    if os.path.isfile(args.meta_output):
-        room_configs = pd.read_csv(args.meta_output, index_col='index')
-    else:
-        room_configs = pd.DataFrame(columns=(
-            'filename',
-            'room_x', 'room_y', 'room_z',
-            'src_x', 'src_y', 'src_z',
-            'mic1_x', 'mic1_y', 'mic1_z',
-            'mic6_x', 'mic6_y', 'mic6_z',
-            'rt60', 'rt60_1', 'rt60_2', 'rt60_3',
-            'rt60_4', 'rt60_5', 'rt60_6',
-            'source_filename'
-        ))
 
+    yaml.add_representer(float, config_io.float_representer)
+
+    room_directory = os.path.join(args.meta_output, 'rooms')
+    item_directory = os.path.join(args.meta_output, 'records')
+    os.makedirs(room_directory, exist_ok=True)
+    os.makedirs(item_directory, exist_ok=True)
     os.makedirs(args.wav_output, exist_ok=True)
 
 
     def work(work_id):
-        result = []
-        room_size, source_location, mic_array_location, rt60 = config.generate_config(
-            seed=random.randint(0, 0xFFFFFFFF),
-            sample_rate=16000
+        filename = f'{str(work_id).zfill(4)}'
+        room_config = generator.generate_room_config(
+            args.tracks,
+            seed=random.randint(0, 0xFFFFFFFF)
         )
-        print(f'Making in room {room_size}. work id {work_id}')
-        room = generator.make_room(room_size, source_location, mic_array_location, rt60)
-        room.compute_rir()
-        actual_rt60 = room.measure_rt60()
+        config_io.save_room_config(room_config, os.path.join(room_directory, filename))
+        print(f'[{work_id}] - Making in room {room_config["room_size"]}.')
         for j in range(args.items_per_room):
-            input_wav_file = random.choice(wav_paths)
-            w, sr = librosa.load(os.path.sep.join((args.timit_path, input_wav_file)), sr=None, mono=True)
-            filename = '-'.join('{:.6f}'.format(time.time()).split('.')) + f'-{str(work_id).zfill(4)}.wav'
-            generator.simulate(room, w,
-                               to_file=os.path.sep.join((args.wav_output, filename)),
-                               input_sample_rate=sr)
-            result.append({
-                'filename': filename,
-                'room_x': room_size[0],
-                'room_y': room_size[1],
-                'room_z': room_size[2],
-                'src_x': source_location[0],
-                'src_y': source_location[1],
-                'src_z': source_location[2],
-                'mic1_x': mic_array_location[0, 0],
-                'mic1_y': mic_array_location[1, 0],
-                'mic1_z': mic_array_location[2, 0],
-                'mic6_x': mic_array_location[0, -1],
-                'mic6_y': mic_array_location[1, -1],
-                'mic6_z': mic_array_location[2, -1],
-                'rt60': rt60,
-                'rt60_1': actual_rt60[0],
-                'rt60_2': actual_rt60[1],
-                'rt60_3': actual_rt60[2],
-                'rt60_4': actual_rt60[3],
-                'rt60_5': actual_rt60[4],
-                'rt60_6': actual_rt60[5],
-                'source_filename': input_wav_file
-            })
-            print(f'Generated file {filename} in room {room_size}. Using {input_wav_file}. work id {work_id}')
-
-        return result
+            track_info = generator.generate_tracks(timit, args.time, args.split, args.poisson_lambda, args.tracks)
+            filename_j = filename + f'-{j}'
+            config_io.save_track_info(track_info, os.path.join(item_directory, filename_j))
+            generator.simulate(room_config, track_info,
+                               to_file=os.path.join(args.wav_output, filename_j + '.wav'))
+            print(f'[{work_id}] - Generated file {filename_j}.')
+        print(f'[{work_id}] - Done.')
 
 
     def do_work(n):
         with multiprocessing.Pool(processes=args.jobs) as pool:
-            results = pool.map(work, range(n))
+            pool.map(work, range(n))
             pool.close()
-            result = pd.concat(map(lambda r: pd.DataFrame(r, index=range(len(r))), results))
             pool.join()
-        return result
 
 
-    rounds, remain = divmod(args.room_count, args.batch * args.jobs)
-    for rn in range(rounds):
-        print(f'Round {rn + 1}/{rounds}')
-        room_configs = room_configs.append(do_work(args.batch * args.jobs), ignore_index=True)
-    if remain > 0:
-        print(f'Generating last remainders')
-        room_configs = room_configs.append(do_work(remain), ignore_index=True)
-
-    print(f'Generated {len(room_configs)} items.')
-    room_configs.to_csv(args.meta_output, index_label='index', float_format='%.3f')
-
-
-    def poisson(lamb, wave_num):
-        X = np.arange(0, wave_num+1, 1)
-        start_times = stats.poisson.pmf(X, l)
-        return start_times
-
-    l = args.l
-    tracks = args.tracks
-    total_time = args.time
-    start_times = poisson(l, wave_num= )  # specify wave_num
+    do_work(args.room_count)
+    print(f'Generated {args.room_count} items.')

@@ -6,15 +6,72 @@ from copy import deepcopy
 from typing import Optional
 
 import librosa
+import matplotlib.pyplot as plt
 import numpy as np
 import pyroomacoustics as pra
 import ruamel_yaml as yaml
-import scipy.stats as stats
 
 import db
+from visualization import visualize
 
 
-def make_room(room_size, source_location, mic_array_location, rt60, sample_rate=16000):
+def generate_room_config(track_num: int, seed=None):
+    """Generate RIR config.
+    :return room_size, source_location, mic_array_location, rt60
+    :rtype room_size: np.array(3,)
+    :rtype source_location: np.array(3,)
+    :rtype mic_array_location: np.array(3, 6)
+    :rtype rt60: float
+    """
+    room_size, sources_location, mic_array_location = None, None, None
+    if seed:
+        np.random.seed(seed)
+
+    rt60 = np.random.choice(np.linspace(0.2, 0.8, 7)).item()
+
+    success = False
+    while not success:
+        L = np.random.choice(np.linspace(3, 5, 21)).item()
+        W = np.random.choice(np.linspace(5, 10, 51)).item()
+        H = 3
+        room_size = [L, W, H]
+
+        mic_x1 = np.random.choice(np.arange(0.5, L - 0.5 - 0.1, 0.05))
+        mic_x6 = mic_x1 + 0.15
+        mic_x = np.linspace(mic_x1, mic_x6, 6, dtype=float)
+        mic_y = np.random.choice(np.arange(0.5, W - 0.5 + 0.05, 0.05)) * np.ones((6,), dtype=float)
+        mic_z = 0.8 * np.ones((6,), dtype=float)
+        mic_array_location = np.vstack((mic_x, mic_y, mic_z))
+
+        source_location = None
+        sources_location = []
+        for i in range(track_num):
+            d = 0
+            trial_time = 0
+            while (d < 3.0 or d > 5.0) and trial_time < 10:
+                source_x = np.random.choice(np.arange(0.5, L - 0.5 + 0.05, 0.05))
+                source_y = np.random.choice(np.arange(0.5, W - 0.5 + 0.05, 0.05))
+                source_z = np.random.choice(np.arange(0.6, 2, 0.05))
+                source_location = np.array([source_x, source_y, source_z])
+                d = np.linalg.norm(source_location - mic_array_location.mean(axis=1))
+                trial_time += 1
+            if trial_time < 10:
+                success = True
+                sources_location.append(source_location)
+            else:
+                success = False
+                break
+
+    room_config = dict(
+        room_size=room_size,
+        sources_location=np.array(sources_location).tolist(),
+        mic_array_location=mic_array_location.tolist(),
+        rt60=rt60
+    )
+    return room_config
+
+
+def make_room(room_size, mic_array_location, rt60, sample_rate=16000):
     e_absorption, max_order = pra.inverse_sabine(rt60, room_size)
     r = pra.ShoeBox(
         room_size,
@@ -23,19 +80,30 @@ def make_room(room_size, source_location, mic_array_location, rt60, sample_rate=
         max_order=max_order
     )
     r.add_microphone_array(mic_array_location)
-    r.add_source(source_location)
     return r
 
 
 def simulate(
-        room: pra.ShoeBox,
-        input_wave,
-        to_file=None,
-        input_sample_rate=16000
+        room_config,
+        track_info,
+        to_file=None
 ):
-    if input_sample_rate != room.fs:
-        input_wave = librosa.resample(input_wave, input_sample_rate, room.fs)
-    room.sources[0].add_signal(input_wave)
+    assert len(room_config['sources_location']) == len(track_info)
+    room = make_room(
+        room_config['room_size'],
+        room_config['mic_array_location'],
+        room_config['rt60']
+    )
+    for source_location, wav_clips in zip(room_config['sources_location'], track_info.values()):
+        for wav_clip in wav_clips:
+            input_wave, fs = librosa.load(wav_clip['wav_file'], sr=None, mono=True)
+            if fs != room.fs:
+                input_wave = librosa.resample(input_wave, fs, room.fs)
+            room.add_source(
+                source_location,
+                signal=input_wave,
+                delay=wav_clip['start_time']
+            )
     room.simulate()
     u = room.mic_array.signals
     if to_file:
@@ -81,18 +149,6 @@ def overlap(wave_a, wave_b, overlap_time):
     wave_a_b = new_wave_data.tostring()
 
     return wave_a_b
-
-
-def overlap_time_distribution(expectation, overlap_num):
-    """Get a distribution of the overlap time
-    :returns t
-    """
-    sigma = 1
-    lower, upper = expectation - 3 * sigma, expectation + 3 * sigma
-    distribution = stats.truncnorm((lower - expectation) / sigma, \
-                                   (upper - expectation) / sigma, loc=expectation, scale=sigma)
-    t = distribution.rvs(overlap_num)
-    return t
 
 
 def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
@@ -221,8 +277,14 @@ def concatenate(*track_infos):
     return result
 
 
+def dump(track_info):
+    return yaml.dump(track_info, Dumper=yaml.RoundTripDumper)
+
+
 if __name__ == '__main__':
     tmt = db.TIMIT('/datasets/TIMIT')
-    info = generate_tracks(tmt, 10, 'train', 0.8, track_num=6)
+    info = generate_tracks(tmt, 20, 'train', 0.8, track_num=6)
     info_yaml = yaml.dump(dict(info), Dumper=yaml.RoundTripDumper)
     print(info_yaml)
+    img = visualize(info)
+    plt.imshow(img)
