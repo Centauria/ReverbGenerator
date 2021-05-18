@@ -2,7 +2,7 @@
 import os.path
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Union
 
 import librosa
 import matplotlib.pyplot as plt
@@ -14,7 +14,19 @@ import db
 from visualization import visualize
 
 
-def generate_room_config(track_num: int, seed=None):
+def conf_to_range(config: Union[dict, list, int, float]):
+    if type(config) == dict:
+        result = np.linspace(config['min'], config['max'], config['steps'])
+    elif type(config) == list:
+        result = config.copy()
+    elif type(config) == float or type(config) == int:
+        result = [config]
+    else:
+        raise ValueError('value must be dict, list, int or float')
+    return result
+
+
+def generate_room_config(track_num: int, config_file: Optional[str] = None, seed=None):
     """Generate RIR config.
     :return room_size, source_location, mic_array_location, rt60
     :rtype room_size: np.array(3,)
@@ -25,14 +37,24 @@ def generate_room_config(track_num: int, seed=None):
     room_size, sources_location, mic_array_location = None, None, None
     if seed:
         np.random.seed(seed)
+    if config_file is not None:
+        with open(config_file) as f:
+            config = yaml.safe_load(f)
+        l_range = conf_to_range(config['room']['L'])
+        w_range = conf_to_range(config['room']['W'])
+        h_range = conf_to_range(config['room']['H'])
+    else:
+        l_range = np.linspace(3, 5, 21)
+        w_range = np.linspace(5, 10, 51)
+        h_range = [3]
 
     rt60 = np.random.choice(np.linspace(0.2, 0.8, 7)).item()
 
     success = False
     while not success:
-        L = np.random.choice(np.linspace(3, 5, 21)).item()
-        W = np.random.choice(np.linspace(5, 10, 51)).item()
-        H = 3
+        L = np.random.choice(l_range).item()
+        W = np.random.choice(w_range).item()
+        H = np.random.choice(h_range).item()
         room_size = [L, W, H]
 
         mic_x1 = np.random.choice(np.arange(0.5, L - 0.5 - 0.1, 0.05))

@@ -28,6 +28,7 @@ if __name__ == '__main__':
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
     p.add_argument('-b', '--batch', type=int, default=2,
                    help='How many works should be done per circulation per worker.')
+    p.add_argument('--config', type=str, default=None, help='Specify config file path.')
     p.add_argument('--seed', type=int, default=None, help='Specify seed.')
     p.add_argument('--timit-path', required=True, help='Specify path of TIMIT database.')
     p.add_argument('--split', required=True, choices=['train', 'test'], help='Choose split of dataset')
@@ -55,6 +56,7 @@ if __name__ == '__main__':
         filename = f'{str(work_id).zfill(4)}'
         room_config = generator.generate_room_config(
             args.tracks,
+            args.config,
             seed=random.randint(0, 0xFFFFFFFF)
         )
         config_io.save_room_config(room_config, os.path.join(room_directory, filename))

@@ -1,0 +1,10 @@
+room:
+  L:
+    min: 3
+    max: 5
+    steps: 21
+  W:
+    min: 5
+    max: 10
+    steps: 51
+  H: 3
