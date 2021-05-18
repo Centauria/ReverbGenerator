@@ -34,6 +34,8 @@ if __name__ == '__main__':
     p.add_argument('--split', required=True, choices=['train', 'test'], help='Choose split of dataset')
     p.add_argument('--meta-output', required=True, help='Output metadata folder name.')
     p.add_argument('--wav-output', required=True, help='Output waveform folder name.')
+    p.add_argument('--prevent-repetition', action='store_true',
+                   help='Add timestamp to generated filename to prevent filename repetition.')
     args = p.parse_args()
 
     if args.seed:
@@ -59,12 +61,12 @@ if __name__ == '__main__':
             args.config,
             seed=random.randint(0, 0xFFFFFFFF)
         )
-        config_io.save_room_config(room_config, os.path.join(room_directory, filename))
+        config_io.save_room_config(room_config, os.path.join(room_directory, filename), args.prevent_repitition)
         print(f'[{work_id}] - Making in room {room_config["room_size"]}.')
         for j in range(args.items_per_room):
             track_info = generator.generate_tracks(timit, args.time, args.split, args.poisson_lambda, args.tracks)
             filename_j = filename + f'-{j}'
-            config_io.save_track_info(track_info, os.path.join(item_directory, filename_j))
+            config_io.save_track_info(track_info, os.path.join(item_directory, filename_j), args.prevent_repitition)
             generator.simulate(room_config, track_info,
                                to_file=os.path.join(args.wav_output, filename_j + '.wav'))
             print(f'[{work_id}] - Generated file {filename_j}.')
