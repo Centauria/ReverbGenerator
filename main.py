@@ -4,6 +4,7 @@ import multiprocessing
 import os.path
 import random
 
+import pyroomacoustics as pra
 import ruamel_yaml as yaml
 
 import config_io
@@ -25,6 +26,7 @@ if __name__ == '__main__':
     p.add_argument('-l', '--lambda', dest='poisson_lambda', type=float,
                    help='Decide the λ of the start time distribution. \n'
                         'The start times is of an exponential distribution.')
+    p.add_argument('-s', '--sound-speed', type=float, default=None, help='Specify speed of sound.')
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
     p.add_argument('-b', '--batch', type=int, default=2,
                    help='How many works should be done per circulation per worker.')
@@ -40,6 +42,8 @@ if __name__ == '__main__':
 
     if args.seed:
         random.seed(args.seed)
+    if args.sound_speed:
+        pra.constants.set('c', args.sound_speed)
     if os.path.isdir(args.timit_path):
         timit = db.TIMIT(args.timit_path)
     else:
