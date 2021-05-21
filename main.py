@@ -28,7 +28,7 @@ if __name__ == '__main__':
                         'The start times is of an exponential distribution.')
     p.add_argument('-s', '--sound-speed', type=float, default=None, help='Specify speed of sound.')
     p.add_argument('-j', '--jobs', type=int, default=1, help='Specify process count.')
-    p.add_argument('-b', '--batch', type=int, default=2,
+    p.add_argument('-b', '--batch', type=int, default=20,
                    help='How many works should be done per circulation per worker.')
     p.add_argument('--config', type=str, default=None, help='Specify config file path.')
     p.add_argument('--seed', type=int, default=None, help='Specify seed.')
@@ -87,5 +87,11 @@ if __name__ == '__main__':
             pool.join()
 
 
-    do_work(args.room_count)
+    batches, remainder = divmod(args.room_count, args.batch)
+    for i in range(batches):
+        print(f'Circulation {i + 1} / {batches}')
+        do_work(args.batch)
+    else:
+        print('Remainders ...')
+        do_work(remainder)
     print(f'Generated {args.room_count} items.')
