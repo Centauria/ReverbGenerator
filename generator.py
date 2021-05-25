@@ -167,7 +167,7 @@ def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
                 else:
                     break
             else:
-                if start_times[-1] <= total_length:
+                if start_times[-1] <= total_length or len(start_times) == 1:
                     end_time = start_times[-1].item() + librosa.get_duration(filename=wav_files[-1])
                     wav_clips.append(dict(
                         wav_file=wav_files[-1].item(),
