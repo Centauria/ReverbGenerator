@@ -149,31 +149,32 @@ def generate_tracks(dataset: db.TIMIT, total_length: float, split: str,
         track_info = defaultdict(lambda: [])
         for p in speakers:
             wav_clips = []
-            start_times = []
-            while len(start_times) == 0:
-                start_times = np.cumsum(
-                    np.random.exponential(speaker_lambda, max(1, int(total_length / speaker_lambda))))
-            wav_files = np.random.choice(dataset.audio(split, p), len(start_times))
-            for i in range(len(start_times) - 1):
-                if start_times[i] <= total_length:
-                    end_time = start_times[i].item() + librosa.get_duration(filename=wav_files[i])
-                    if end_time > start_times[i + 1]:
-                        start_times[i + 1] = end_time
-                    wav_clips.append(dict(
-                        wav_file=wav_files[i].item(),
-                        start_time=start_times[i].item(),
-                        end_time=end_time
-                    ))
+            while len(wav_clips) == 0:
+                start_times = []
+                while len(start_times) == 0:
+                    start_times = np.cumsum(
+                        np.random.exponential(speaker_lambda, max(1, int(total_length / speaker_lambda))))
+                wav_files = np.random.choice(dataset.audio(split, p), len(start_times))
+                for i in range(len(start_times) - 1):
+                    if start_times[i] <= total_length:
+                        end_time = start_times[i].item() + librosa.get_duration(filename=wav_files[i])
+                        if end_time > start_times[i + 1]:
+                            start_times[i + 1] = end_time
+                        wav_clips.append(dict(
+                            wav_file=wav_files[i].item(),
+                            start_time=start_times[i].item(),
+                            end_time=end_time
+                        ))
+                    else:
+                        break
                 else:
-                    break
-            else:
-                if start_times[-1] <= total_length or len(start_times) == 1:
-                    end_time = start_times[-1].item() + librosa.get_duration(filename=wav_files[-1])
-                    wav_clips.append(dict(
-                        wav_file=wav_files[-1].item(),
-                        start_time=start_times[-1].item(),
-                        end_time=end_time
-                    ))
+                    if start_times[-1] <= total_length or len(start_times) == 1:
+                        end_time = start_times[-1].item() + librosa.get_duration(filename=wav_files[-1])
+                        wav_clips.append(dict(
+                            wav_file=wav_files[-1].item(),
+                            start_time=start_times[-1].item(),
+                            end_time=end_time
+                        ))
             track_info[p] = wav_clips
         if sum(map(len, track_info.values())) > 0:
             break
