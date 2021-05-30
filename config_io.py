@@ -2,7 +2,9 @@
 import json
 import os.path
 import time
+from typing import Union
 
+import numpy as np
 import ruamel_yaml as yaml
 
 
@@ -25,3 +27,15 @@ def save_track_info(track_info, track_directory, filename, prevent_repitition=Fa
     with open(os.path.join(track_directory, filename + '.json'), 'w') as f:
         json.dump(track_info, f)
     return filename
+
+
+def conf_to_range(config: Union[dict, list, int, float]):
+    if type(config) == dict:
+        result = np.linspace(config['min'], config['max'], config['steps'])
+    elif type(config) == list:
+        result = config.copy()
+    elif type(config) == float or type(config) == int:
+        result = [config]
+    else:
+        raise ValueError('value must be dict, list, int or float')
+    return result

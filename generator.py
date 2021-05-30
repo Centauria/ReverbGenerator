@@ -2,7 +2,7 @@
 import os.path
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
-from typing import Optional, Union
+from typing import Optional
 
 import librosa
 import matplotlib.pyplot as plt
@@ -11,19 +11,8 @@ import pyroomacoustics as pra
 import ruamel_yaml as yaml
 
 import db
+from config_io import conf_to_range
 from visualization import visualize
-
-
-def conf_to_range(config: Union[dict, list, int, float]):
-    if type(config) == dict:
-        result = np.linspace(config['min'], config['max'], config['steps'])
-    elif type(config) == list:
-        result = config.copy()
-    elif type(config) == float or type(config) == int:
-        result = [config]
-    else:
-        raise ValueError('value must be dict, list, int or float')
-    return result
 
 
 def generate_room_config(track_num: int, config_file: Optional[str] = None, seed=None):
