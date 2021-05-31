@@ -49,23 +49,27 @@ def generate_room_config(track_num: int, config_file: Optional[str] = None, seed
         mic_x1 = np.random.choice(np.arange(0.5, L - 0.5 - 0.1, 0.05))
         mic_x6 = mic_x1 + 0.15
         mic_x = np.linspace(mic_x1, mic_x6, 6, dtype=float)
-        mic_y = np.random.choice(np.arange(0.5, W - 0.5 + 0.05, 0.05)) * np.ones((6,), dtype=float)
+        mic_y = np.random.choice(np.arange(0.5, W / 2 + 0.05, 0.05)) * np.ones((6,), dtype=float)
         mic_z = 0.8 * np.ones((6,), dtype=float)
         mic_array_location = np.vstack((mic_x, mic_y, mic_z))
 
         source_location = None
         sources_location = []
+        source_x_range = np.arange(0.5, L - 0.5 + 0.05, 0.05)
+        source_y_range = np.arange(W / 2, W - 0.5 + 0.05, 0.05)
+        source_z_range = np.arange(0.6, 2, 0.05)
         for i in range(track_num):
             d = 0
             trial_time = 0
-            while (d < 3.0 or d > 5.0) and trial_time < 10:
-                source_x = np.random.choice(np.arange(0.5, L - 0.5 + 0.05, 0.05))
-                source_y = np.random.choice(np.arange(0.5, W - 0.5 + 0.05, 0.05))
-                source_z = np.random.choice(np.arange(0.6, 2, 0.05))
+            while (d < 3.0 or d > 5.0) and trial_time < 32:
+                source_x = np.random.choice(source_x_range)
+                source_y = np.random.choice(source_y_range)
+                source_z = np.random.choice(source_z_range)
                 source_location = np.array([source_x, source_y, source_z])
-                d = np.linalg.norm(source_location - mic_array_location.mean(axis=1))
+                xyz = source_location - mic_array_location.mean(axis=1)
+                d = np.linalg.norm(xyz)
                 trial_time += 1
-            if trial_time < 10:
+            if trial_time < 32:
                 success = True
                 sources_location.append(source_location)
             else:
