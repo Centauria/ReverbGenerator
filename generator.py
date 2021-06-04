@@ -57,7 +57,7 @@ def generate_room_config(track_num: int, config_file: Optional[str] = None, seed
         sources_location = []
         source_x_range = np.arange(0.5, L - 0.5 + 0.05, 0.05)
         source_y_range = np.arange(W / 2, W - 0.5 + 0.05, 0.05)
-        source_z_range = np.arange(0.6, 2, 0.05)
+        source_z_range = np.arange(0.7, 0.9, 0.01)
         for i in range(track_num):
             d = 0
             trial_time = 0
